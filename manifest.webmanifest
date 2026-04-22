@@ -1,0 +1,15 @@
+{
+  "name": "MegaHorn",
+  "short_name": "MegaHorn",
+  "description": "Turn your phone into a Bluetooth megaphone. Push to talk through any paired BT speaker.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
+  "icons": [
+    { "src": "icon-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>MegaHorn — Bluetooth Megaphone</title>
+<meta name="description" content="Turn your phone into a Bluetooth megaphone. Push to talk through any paired BT speaker.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="MegaHorn">
+<meta name="theme-color" content="#0a0a0a">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  body {
+    background: #0a0a0a;
+    color: #eaeaea;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    display: flex;
+    flex-direction: column;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    font-size: 16px;
+    line-height: 1.4;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+  header {
+    padding: 14px 20px 10px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+  h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 3px; }
+  .subtitle { font-size: 13px; color: #888; }
+  .steps { font-size: 12px; color: #666; margin-top: 6px; }
+  main {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 20px;
+    min-height: 0;
+  }
+  .ptt {
+    width: min(72vw, 62vh, 360px);
+    height: min(72vw, 62vh, 360px);
+    border-radius: 50%;
+    border: none;
+    background: radial-gradient(circle at 30% 30%, #2a2a2a, #151515);
+    color: #eaeaea;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.5), inset 0 2px 0 rgba(255,255,255,0.05);
+    transition: transform 0.08s ease, background 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+  }
+  .ptt.active {
+    background: radial-gradient(circle at 30% 30%, #ff4444, #b01515);
+    transform: scale(0.97);
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 80px rgba(255,60,60,0.45), 0 8px 40px rgba(0,0,0,0.5), inset 0 2px 0 rgba(255,255,255,0.1); }
+    50%      { box-shadow: 0 0 130px rgba(255,60,60,0.75), 0 8px 40px rgba(0,0,0,0.5), inset 0 2px 0 rgba(255,255,255,0.1); }
+  }
+  footer {
+    padding: 10px 20px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    color: #888;
+    flex-shrink: 0;
+    gap: 12px;
+  }
+  .status { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #555; }
+  .dot.ready { background: #4ade80; }
+  .dot.active { background: #ff4444; box-shadow: 0 0 8px #ff4444; }
+  .dot.error { background: #f87171; }
+  .meter {
+    flex: 1;
+    max-width: 200px;
+    height: 6px;
+    background: #222;
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .meter-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #4ade80, #eab308 60%, #ef4444 90%);
+    width: 0%;
+    transition: width 0.05s linear;
+  }
+  .enable-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+  }
+  .enable-btn {
+    padding: 16px 32px;
+    font-size: 17px;
+    font-weight: 600;
+    background: #fff;
+    color: #000;
+    border: none;
+    border-radius: 999px;
+    cursor: pointer;
+  }
+  .enable-btn:disabled { opacity: 0.5; cursor: default; }
+  .hint {
+    font-size: 12px;
+    color: #666;
+    max-width: 280px;
+    text-align: center;
+    line-height: 1.45;
+  }
+  .error {
+    color: #ff9090;
+    font-size: 13px;
+    text-align: center;
+    padding: 0 20px 6px;
+    min-height: 18px;
+  }
+  .resume-banner {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    color: #eaeaea;
+    padding: 10px 14px;
+    margin: 0 14px 8px;
+    border-radius: 10px;
+    text-align: center;
+    font-size: 13px;
+    display: none;
+    cursor: pointer;
+  }
+  .resume-banner.show { display: block; }
+</style>
+</head>
+<body>
+  <header id="header">
+    <h1>🔊 MegaHorn</h1>
+    <div class="subtitle">Phone → Bluetooth speaker. Push to talk.</div>
+    <div class="steps">1. Pair BT speaker in Settings · 2. Enable mic · 3. Hold to talk</div>
+  </header>
+
+  <div class="resume-banner" id="resumeBanner">Session paused — tap to resume.</div>
+  <div class="error" id="errorLine"></div>
+
+  <main>
+    <div class="enable-wrap" id="enableWrap">
+      <button class="enable-btn" id="enableBtn">Enable microphone</button>
+      <div class="hint">iOS will ask for mic permission. Audio will be phone-call quality (HFP) when the mic is open — that's an iOS/Bluetooth limit.</div>
+    </div>
+    <button class="ptt" id="pttBtn" hidden>Hold to talk</button>
+  </main>
+
+  <footer>
+    <div class="status">
+      <div class="dot" id="statusDot"></div>
+      <span id="statusText">waiting</span>
+    </div>
+    <div class="meter"><div class="meter-fill" id="meterFill"></div></div>
+  </footer>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const enableBtn = $('enableBtn');
+    const enableWrap = $('enableWrap');
+    const pttBtn = $('pttBtn');
+    const statusDot = $('statusDot');
+    const statusText = $('statusText');
+    const meterFill = $('meterFill');
+    const errorLine = $('errorLine');
+    const resumeBanner = $('resumeBanner');
+    const header = $('header');
+
+    let audioContext = null;
+    let stream = null;
+    let sourceNode = null;
+    let pttGain = null;
+    let analyser = null;
+    let wakeLock = null;
+    let meterRaf = null;
+    let talking = false;
+    let enabled = false;
+
+    function setStatus(kind, text) {
+      statusDot.className = 'dot' + (kind ? ' ' + kind : '');
+      statusText.textContent = text;
+    }
+    function showError(msg) { errorLine.textContent = msg || ''; }
+
+    async function acquireStream() {
+      return navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          autoGainControl: false,
+          noiseSuppression: false,
+          channelCount: 1
+        }
+      });
+    }
+
+    function buildGraph(ctx, mediaStream) {
+      const src = ctx.createMediaStreamSource(mediaStream);
+
+      const hpf = ctx.createBiquadFilter();
+      hpf.type = 'highpass';
+      hpf.frequency.value = 120;
+
+      const comp = ctx.createDynamicsCompressor();
+      comp.threshold.value = -24;
+      comp.ratio.value = 6;
+      comp.attack.value = 0.001;
+      comp.release.value = 0.08;
+      comp.knee.value = 6;
+
+      const makeup = ctx.createGain();
+      makeup.gain.value = 2;
+
+      const ptt = ctx.createGain();
+      ptt.gain.value = 0;
+
+      const limiter = ctx.createDynamicsCompressor();
+      limiter.threshold.value = -1;
+      limiter.ratio.value = 20;
+      limiter.attack.value = 0.001;
+      limiter.release.value = 0.05;
+      limiter.knee.value = 0;
+
+      const an = ctx.createAnalyser();
+      an.fftSize = 512;
+
+      src.connect(hpf);
+      hpf.connect(comp);
+      comp.connect(makeup);
+      makeup.connect(ptt);
+      ptt.connect(limiter);
+      limiter.connect(ctx.destination);
+      makeup.connect(an);
+
+      return { src, ptt, analyser: an };
+    }
+
+    function startMeter() {
+      if (!analyser) return;
+      const buf = new Uint8Array(analyser.fftSize);
+      const tick = () => {
+        analyser.getByteTimeDomainData(buf);
+        let peak = 0;
+        for (let i = 0; i < buf.length; i++) {
+          const v = Math.abs(buf[i] - 128);
+          if (v > peak) peak = v;
+        }
+        const pct = Math.min(100, (peak / 128) * 150);
+        meterFill.style.width = pct + '%';
+        meterRaf = requestAnimationFrame(tick);
+      };
+      tick();
+    }
+    function stopMeter() {
+      if (meterRaf) cancelAnimationFrame(meterRaf);
+      meterRaf = null;
+      meterFill.style.width = '0%';
+    }
+
+    async function requestWakeLock() {
+      if (!('wakeLock' in navigator)) return;
+      try { wakeLock = await navigator.wakeLock.request('screen'); } catch {}
+    }
+    async function releaseWakeLock() {
+      try { if (wakeLock) await wakeLock.release(); } catch {}
+      wakeLock = null;
+    }
+
+    function wireStreamListeners() {
+      const track = stream && stream.getAudioTracks()[0];
+      if (!track) return;
+      track.onmute = () => handleInterruption('mic muted');
+      track.onended = () => handleInterruption('mic ended');
+      if (audioContext) {
+        audioContext.onstatechange = () => {
+          if (audioContext.state === 'suspended') handleInterruption('context suspended');
+        };
+      }
+    }
+
+    function handleInterruption(reason) {
+      if (talking) stopTalking();
+      resumeBanner.classList.add('show');
+      setStatus('error', 'paused');
+    }
+
+    async function enable() {
+      try {
+        enableBtn.disabled = true;
+        enableBtn.textContent = 'Requesting mic…';
+        setStatus('', 'requesting mic');
+
+        if (!audioContext || audioContext.state === 'closed') {
+          const Ctx = window.AudioContext || window.webkitAudioContext;
+          audioContext = new Ctx({ latencyHint: 'interactive' });
+        }
+        if (audioContext.state === 'suspended') await audioContext.resume();
+
+        stream = await acquireStream();
+        const graph = buildGraph(audioContext, stream);
+        sourceNode = graph.src;
+        pttGain = graph.ptt;
+        analyser = graph.analyser;
+
+        wireStreamListeners();
+        await requestWakeLock();
+        startMeter();
+
+        enableWrap.hidden = true;
+        pttBtn.hidden = false;
+        enabled = true;
+        setStatus('ready', 'ready');
+        showError('');
+      } catch (err) {
+        enableBtn.disabled = false;
+        enableBtn.textContent = 'Enable microphone';
+        setStatus('error', 'mic denied');
+        if (err && err.name === 'NotAllowedError') {
+          showError('Microphone permission denied. Open Settings → Safari → Microphone to re-enable.');
+        } else {
+          showError('Failed to start: ' + ((err && err.message) || err));
+        }
+      }
+    }
+
+    async function resumeSession() {
+      try {
+        resumeBanner.classList.remove('show');
+        setStatus('', 'resuming');
+        if (!audioContext || audioContext.state === 'closed') {
+          const Ctx = window.AudioContext || window.webkitAudioContext;
+          audioContext = new Ctx({ latencyHint: 'interactive' });
+        }
+        if (audioContext.state === 'suspended') await audioContext.resume();
+
+        const track = stream && stream.getAudioTracks()[0];
+        if (!track || track.readyState === 'ended' || track.muted) {
+          if (stream) stream.getTracks().forEach(t => t.stop());
+          stopMeter();
+          stream = await acquireStream();
+          const graph = buildGraph(audioContext, stream);
+          sourceNode = graph.src;
+          pttGain = graph.ptt;
+          analyser = graph.analyser;
+          wireStreamListeners();
+          startMeter();
+        }
+        await requestWakeLock();
+        setStatus('ready', 'ready');
+        showError('');
+      } catch (err) {
+        setStatus('error', 'resume failed');
+        showError('Could not resume: ' + ((err && err.message) || err));
+      }
+    }
+
+    function startTalking(ev) {
+      if (!enabled || !audioContext || !pttGain) return;
+      if (audioContext.state === 'suspended') { resumeSession(); return; }
+      if (ev && ev.pointerId != null) {
+        try { pttBtn.setPointerCapture(ev.pointerId); } catch {}
+      }
+      talking = true;
+      const now = audioContext.currentTime;
+      pttGain.gain.cancelScheduledValues(now);
+      pttGain.gain.setValueAtTime(pttGain.gain.value, now);
+      pttGain.gain.linearRampToValueAtTime(1, now + 0.01);
+      pttBtn.classList.add('active');
+      pttBtn.textContent = 'Broadcasting…';
+      setStatus('active', 'transmitting');
+      if (navigator.vibrate) { try { navigator.vibrate(30); } catch {} }
+    }
+
+    function stopTalking(ev) {
+      if (!talking || !audioContext || !pttGain) {
+        pttBtn.classList.remove('active');
+        pttBtn.textContent = 'Hold to talk';
+        return;
+      }
+      talking = false;
+      const now = audioContext.currentTime;
+      pttGain.gain.cancelScheduledValues(now);
+      pttGain.gain.setValueAtTime(pttGain.gain.value, now);
+      pttGain.gain.linearRampToValueAtTime(0, now + 0.01);
+      pttBtn.classList.remove('active');
+      pttBtn.textContent = 'Hold to talk';
+      setStatus('ready', 'ready');
+      if (ev && ev.pointerId != null) {
+        try { pttBtn.releasePointerCapture(ev.pointerId); } catch {}
+      }
+    }
+
+    enableBtn.addEventListener('click', enable, { passive: true });
+
+    pttBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); startTalking(e); });
+    pttBtn.addEventListener('pointerup',   (e) => { e.preventDefault(); stopTalking(e); });
+    pttBtn.addEventListener('pointercancel', (e) => { stopTalking(e); });
+    pttBtn.addEventListener('lostpointercapture', (e) => { stopTalking(e); });
+    pttBtn.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space' && !e.repeat) {
+        const t = e.target;
+        if (t && t.tagName && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+        e.preventDefault();
+        startTalking();
+      }
+    });
+    window.addEventListener('keyup', (e) => {
+      if (e.code === 'Space') { e.preventDefault(); stopTalking(); }
+    });
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        if (talking) stopTalking();
+      } else {
+        if (enabled && audioContext && audioContext.state === 'suspended') {
+          resumeBanner.classList.add('show');
+        }
+        requestWakeLock();
+      }
+    });
+
+    resumeBanner.addEventListener('click', resumeSession);
+
+    // Long-press header → device debug info
+    let pressTimer;
+    header.addEventListener('pointerdown', () => {
+      clearTimeout(pressTimer);
+      pressTimer = setTimeout(async () => {
+        try {
+          const devs = await navigator.mediaDevices.enumerateDevices();
+          const out = devs.map(d => `${d.kind}: ${d.label || '(no label — grant mic first)'}`).join('\n');
+          alert('Devices:\n\n' + out + '\n\nAudioContext: ' + (audioContext ? audioContext.state : 'not created'));
+        } catch (e) { alert('enumerate failed: ' + e); }
+      }, 1500);
+    });
+    header.addEventListener('pointerup',     () => clearTimeout(pressTimer));
+    header.addEventListener('pointerleave',  () => clearTimeout(pressTimer));
+    header.addEventListener('pointercancel', () => clearTimeout(pressTimer));
+  </script>
+</body>
+</html>
