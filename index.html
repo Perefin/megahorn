@@ -15,6 +15,31 @@
 <link rel="icon" type="image/svg+xml" href="icon.svg">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0a;
+    --fg: #eaeaea;
+    --muted: #8e8e93;
+    --dim: #6b6b6f;
+    --accent: #0a84ff;
+    --accent-fg: #fff;
+    --danger: #ff453a;
+    --success: #30d158;
+    --surface: rgba(255,255,255,0.06);
+    --surface-strong: rgba(255,255,255,0.10);
+    --border: rgba(255,255,255,0.08);
+    --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :root { --spring: ease; }
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
   html, body {
     height: 100%;
     overflow: hidden;
@@ -24,10 +49,11 @@
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
   }
+
   body {
-    background: #0a0a0a;
-    color: #eaeaea;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
     display: flex;
     flex-direction: column;
     padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
@@ -35,69 +61,186 @@
     line-height: 1.4;
     min-height: 100vh;
     min-height: 100dvh;
+    position: relative;
   }
+
+  /* ---- state machine: body class drives layout ---- */
+  body:not(.state-cold) #enableWrap { display: none; }
+  body.state-cold       #pttWrap    { display: none; }
+  body.state-cold       .top-bar    { display: none; }
+  body.state-cold       footer      { display: none; }
+  body.state-talking    .top-bar    { opacity: 0.35; transition: opacity 0.3s ease; }
+  body:not(.state-paused) .resume-banner { display: none; }
+  body.state-paused     .resume-banner   { display: block; }
+  body.state-paused     #pttWrap         { display: none; } /* resume banner is the only action while paused */
+
+  /* ---- header ---- */
   header {
-    padding: 14px 20px 10px;
+    padding: 18px 20px 10px;
     text-align: center;
     flex-shrink: 0;
+    position: relative;
+    z-index: 1;
   }
-  h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 3px; }
-  .subtitle { font-size: 13px; color: #888; }
-  .steps { font-size: 12px; color: #666; margin-top: 6px; }
+  h1 { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 4px; }
+  .subtitle { font-size: 14px; color: var(--muted); }
+  .steps { font-size: 13px; color: var(--dim); margin-top: 8px; line-height: 1.7; }
+
+  body:not(.state-cold) header  { padding: 14px 20px 4px; }
+  body:not(.state-cold) h1      { font-size: 17px; opacity: 0.85; }
+  body:not(.state-cold) .subtitle,
+  body:not(.state-cold) .steps  { display: none; }
+
+  /* ---- top bar (gear + profile chip) ---- */
+  .top-bar {
+    position: absolute;
+    top: calc(env(safe-area-inset-top) + 10px);
+    left: 14px;
+    right: 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 5;
+    pointer-events: none;
+  }
+  .top-bar > * { pointer-events: auto; }
+
+  .icon-btn, .profile-chip {
+    background: var(--surface);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    backdrop-filter: blur(20px) saturate(150%);
+    border: 1px solid var(--border);
+    color: var(--fg);
+    border-radius: 999px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 500;
+    transition: background 0.15s, transform 0.1s ease;
+  }
+  .icon-btn { width: 44px; height: 44px; font-size: 19px; display: grid; place-items: center; }
+  .profile-chip { padding: 0 16px; height: 44px; min-width: 110px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; }
+  .icon-btn:active, .profile-chip:active { background: var(--surface-strong); transform: scale(0.94); }
+
+  /* ---- error & resume ---- */
+  .error {
+    color: #ff9090;
+    font-size: 13px;
+    text-align: center;
+    padding: 0 20px 4px;
+    min-height: 18px;
+    position: relative;
+    z-index: 1;
+  }
+  .resume-banner {
+    background: var(--surface-strong);
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--border);
+    color: var(--fg);
+    padding: 12px 16px;
+    margin: 6px 14px 8px;
+    border-radius: 14px;
+    text-align: center;
+    font-size: 14px;
+    cursor: pointer;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ---- main ---- */
   main {
     flex: 1;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 10px 20px;
+    padding: 16px 20px 8px;
     min-height: 0;
+    position: relative;
+  }
+
+  /* COLD enable wrap */
+  .enable-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+    max-width: 320px;
+    width: 100%;
+  }
+  .enable-btn {
+    padding: 18px 36px;
+    font-size: 17px;
+    font-weight: 600;
+    background: var(--accent);
+    color: var(--accent-fg);
+    border: none;
+    border-radius: 999px;
+    cursor: pointer;
+    width: 100%;
+    min-height: 56px;
+    transition: transform 0.1s ease, opacity 0.15s;
+    font-family: inherit;
+  }
+  .enable-btn:active { transform: scale(0.97); }
+  .enable-btn:disabled { opacity: 0.5; cursor: default; }
+
+  .hint {
+    font-size: 13px;
+    color: var(--dim);
+    text-align: center;
+    line-height: 1.5;
+    max-width: 290px;
+  }
+
+  /* READY/TALKING ptt wrap */
+  #pttWrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 22px;
+    width: 100%;
   }
   .ptt {
-    width: min(72vw, 62vh, 360px);
-    height: min(72vw, 62vh, 360px);
+    width: min(72vw, 56vh, 340px);
+    height: min(72vw, 56vh, 340px);
     border-radius: 50%;
     border: none;
-    background: radial-gradient(circle at 30% 30%, #2a2a2a, #151515);
-    color: #eaeaea;
-    font-size: 20px;
+    background: radial-gradient(circle at 30% 28%, #2a2a2a, #131313);
+    color: var(--fg);
+    font-size: 19px;
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     cursor: pointer;
-    box-shadow: 0 8px 40px rgba(0,0,0,0.5), inset 0 2px 0 rgba(255,255,255,0.05);
+    box-shadow: 0 12px 50px rgba(0,0,0,0.55), inset 0 2px 0 rgba(255,255,255,0.05);
     transition: transform 0.08s ease, background 0.15s ease;
     -webkit-tap-highlight-color: transparent;
     -webkit-touch-callout: none;
+    font-family: inherit;
   }
   .ptt.active {
-    background: radial-gradient(circle at 30% 30%, #ff4444, #b01515);
+    background: radial-gradient(circle at 30% 28%, #ff5252, #b01515);
     transform: scale(0.97);
     animation: pulse 1.2s ease-in-out infinite;
   }
   @keyframes pulse {
-    0%, 100% { box-shadow: 0 0 80px rgba(255,60,60,0.45), 0 8px 40px rgba(0,0,0,0.5), inset 0 2px 0 rgba(255,255,255,0.1); }
-    50%      { box-shadow: 0 0 130px rgba(255,60,60,0.75), 0 8px 40px rgba(0,0,0,0.5), inset 0 2px 0 rgba(255,255,255,0.1); }
+    0%,100% { box-shadow: 0 0 80px rgba(255,60,60,0.45),  0 12px 50px rgba(0,0,0,0.55), inset 0 2px 0 rgba(255,255,255,0.10); }
+    50%     { box-shadow: 0 0 130px rgba(255,60,60,0.75), 0 12px 50px rgba(0,0,0,0.55), inset 0 2px 0 rgba(255,255,255,0.10); }
   }
-  footer {
-    padding: 10px 20px 16px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 12px;
-    color: #888;
-    flex-shrink: 0;
-    gap: 12px;
+
+  /* Portrait mobile: bias PTT to lower-third for thumb reach */
+  @media (orientation: portrait) and (max-width: 600px) {
+    body:not(.state-cold) main { justify-content: flex-end; padding-bottom: 9vh; }
   }
-  .status { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
-  .dot { width: 8px; height: 8px; border-radius: 50%; background: #555; }
-  .dot.ready { background: #4ade80; }
-  .dot.active { background: #ff4444; box-shadow: 0 0 8px #ff4444; }
-  .dot.error { background: #f87171; }
+
+  /* meter (under PTT) */
   .meter {
-    flex: 1;
-    max-width: 200px;
+    width: 100%;
+    max-width: 280px;
     height: 6px;
-    background: #222;
+    background: rgba(255,255,255,0.08);
     border-radius: 3px;
     overflow: hidden;
   }
@@ -107,58 +250,189 @@
     width: 0%;
     transition: width 0.05s linear;
   }
-  .enable-wrap {
+
+  /* footer (status only — meter moved into ptt-wrap) */
+  footer {
+    padding: 8px 20px 14px;
     display: flex;
-    flex-direction: column;
+    justify-content: center;
     align-items: center;
-    gap: 14px;
+    font-size: 12px;
+    color: var(--muted);
+    flex-shrink: 0;
   }
-  .enable-btn {
-    padding: 16px 32px;
+  .status { display: flex; align-items: center; gap: 8px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #555; transition: background 0.15s, box-shadow 0.15s; }
+  .dot.ready  { background: var(--success); }
+  .dot.active { background: var(--danger); box-shadow: 0 0 10px var(--danger); }
+  .dot.error  { background: #f87171; }
+
+  /* ---- bottom sheet ---- */
+  .sheet-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+    z-index: 20;
+  }
+  body.sheet-open .sheet-backdrop { opacity: 1; pointer-events: auto; }
+
+  .sheet {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    background: #1a1a1a;
+    border-radius: 24px 24px 0 0;
+    padding: 8px 22px calc(env(safe-area-inset-bottom) + 22px);
+    transform: translateY(110%);
+    transition: transform 0.32s var(--spring);
+    z-index: 21;
+    max-height: 88vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    box-shadow: 0 -10px 40px rgba(0,0,0,0.5);
+  }
+  body.sheet-open .sheet { transform: translateY(0); }
+  .sheet-handle {
+    width: 36px;
+    height: 5px;
+    background: rgba(255,255,255,0.18);
+    border-radius: 3px;
+    margin: 4px auto 14px;
+  }
+  .sheet h2 { font-size: 22px; margin-bottom: 18px; font-weight: 600; letter-spacing: -0.01em; }
+  .sheet h3 { font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.08em; }
+  .sheet section { margin-bottom: 22px; }
+  .sheet .hint { text-align: left; max-width: none; margin-top: 8px; }
+
+  .segmented {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 4px;
+    background: rgba(0,0,0,0.45);
+    padding: 4px;
+    border-radius: 12px;
+  }
+  .seg {
+    background: transparent;
+    border: none;
+    color: var(--fg);
+    padding: 11px 8px;
+    font-size: 15px;
+    font-weight: 500;
+    border-radius: 9px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s, color 0.15s;
+  }
+  .seg.active { background: var(--accent); color: var(--accent-fg); font-weight: 600; }
+  .seg:not(.active):active { background: var(--surface); }
+
+  .toggle {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 4px 0;
+    position: relative;
+  }
+  .toggle input { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }
+  .switch {
+    position: relative;
+    width: 51px;
+    height: 31px;
+    background: rgba(120,120,128,0.45);
+    border-radius: 999px;
+    transition: background 0.2s ease;
+    flex-shrink: 0;
+  }
+  .switch::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 27px;
+    height: 27px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform 0.22s var(--spring);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+  }
+  .toggle input:checked ~ .switch { background: var(--success); }
+  .toggle input:checked ~ .switch::after { transform: translateX(20px); }
+
+  .sheet button.secondary {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--fg);
+    padding: 14px;
+    font-size: 16px;
+    font-weight: 500;
+    border-radius: 12px;
+    cursor: pointer;
+    font-family: inherit;
+    min-height: 48px;
+    transition: background 0.15s, opacity 0.15s;
+  }
+  .sheet button.secondary:active { background: var(--surface-strong); }
+  .sheet button.secondary:disabled { opacity: 0.45; cursor: default; }
+
+  .sheet details summary {
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--muted);
+    padding: 8px 0;
+    list-style: none;
+    user-select: none;
+  }
+  .sheet details summary::-webkit-details-marker { display: none; }
+  .sheet details summary::before { content: '▸ '; display: inline-block; transition: transform 0.15s; transform-origin: center; }
+  .sheet details[open] summary::before { transform: rotate(90deg); }
+  .sheet details[open] summary { color: var(--fg); }
+  .sheet pre {
+    background: rgba(0,0,0,0.4);
+    padding: 12px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: #aaa;
+    margin-top: 10px;
+    max-height: 240px;
+    overflow-y: auto;
+    user-select: text;
+    -webkit-user-select: text;
+  }
+
+  .sheet-close {
+    width: 100%;
+    background: transparent;
+    border: none;
+    color: var(--accent);
     font-size: 17px;
     font-weight: 600;
-    background: #fff;
-    color: #000;
-    border: none;
-    border-radius: 999px;
+    padding: 14px;
     cursor: pointer;
+    font-family: inherit;
+    margin-top: 6px;
   }
-  .enable-btn:disabled { opacity: 0.5; cursor: default; }
-  .hint {
-    font-size: 12px;
-    color: #666;
-    max-width: 280px;
-    text-align: center;
-    line-height: 1.45;
-  }
-  .error {
-    color: #ff9090;
-    font-size: 13px;
-    text-align: center;
-    padding: 0 20px 6px;
-    min-height: 18px;
-  }
-  .resume-banner {
-    background: #1a1a1a;
-    border: 1px solid #333;
-    color: #eaeaea;
-    padding: 10px 14px;
-    margin: 0 14px 8px;
-    border-radius: 10px;
-    text-align: center;
-    font-size: 13px;
-    display: none;
-    cursor: pointer;
-  }
-  .resume-banner.show { display: block; }
 </style>
 </head>
-<body>
+<body class="state-cold">
   <header id="header">
     <h1>🔊 MegaHorn</h1>
     <div class="subtitle">Phone → Bluetooth speaker. Push to talk.</div>
     <div class="steps">1. Pair BT speaker in Settings · 2. Enable mic · 3. Hold to talk</div>
   </header>
+
+  <div class="top-bar">
+    <button class="icon-btn" id="settingsBtn" aria-label="Settings">⚙</button>
+    <button class="profile-chip" id="profileChip" aria-label="Audio profile">Crisp ▾</button>
+  </div>
 
   <div class="resume-banner" id="resumeBanner">Session paused — tap to resume.</div>
   <div class="error" id="errorLine"></div>
@@ -166,9 +440,13 @@
   <main>
     <div class="enable-wrap" id="enableWrap">
       <button class="enable-btn" id="enableBtn">Enable microphone</button>
-      <div class="hint">iOS will ask for mic permission. Audio will be phone-call quality (HFP) when the mic is open — that's an iOS/Bluetooth limit.</div>
+      <p class="hint">iOS will ask for mic permission. Audio routes through Bluetooth in HFP narrowband mode — that's a hardware limit, not the app.</p>
     </div>
-    <button class="ptt" id="pttBtn" hidden>Hold to talk</button>
+
+    <div id="pttWrap">
+      <button class="ptt" id="pttBtn">Hold to talk</button>
+      <div class="meter" aria-hidden="true"><div class="meter-fill" id="meterFill"></div></div>
+    </div>
   </main>
 
   <footer>
@@ -176,41 +454,120 @@
       <div class="dot" id="statusDot"></div>
       <span id="statusText">waiting</span>
     </div>
-    <div class="meter"><div class="meter-fill" id="meterFill"></div></div>
   </footer>
+
+  <div class="sheet-backdrop" id="sheetBackdrop"></div>
+  <aside class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Settings">
+    <div class="sheet-handle" id="sheetHandle" aria-hidden="true"></div>
+    <h2>Settings</h2>
+
+    <section>
+      <h3>Audio profile</h3>
+      <div class="segmented" role="radiogroup" aria-label="Audio profile">
+        <button class="seg" data-profile="crisp"   role="radio" aria-checked="true">Crisp</button>
+        <button class="seg" data-profile="loud"    role="radio" aria-checked="false">Loud</button>
+        <button class="seg" data-profile="natural" role="radio" aria-checked="false">Natural</button>
+      </div>
+      <p class="hint"><strong>Crisp</strong> boosts consonant clarity (default). <strong>Loud</strong> maximizes volume with heavier compression. <strong>Natural</strong> is gentler — best if Crisp sounds harsh.</p>
+    </section>
+
+    <section>
+      <label class="toggle">
+        <span>Echo cancellation</span>
+        <input type="checkbox" id="aecToggle">
+        <span class="switch" aria-hidden="true"></span>
+      </label>
+      <p class="hint">Off (default) gives the loudest, fullest broadcast. Turn on only if the phone is close to the speaker and you hear feedback — but expect occasional voice ducking on iOS.</p>
+    </section>
+
+    <section>
+      <button class="secondary" id="testToneBtn">▶ Play test tone</button>
+      <p class="hint">A short sweep through the speech band. Useful for hearing the profile through your speaker without holding the button.</p>
+    </section>
+
+    <details>
+      <summary>Debug info</summary>
+      <pre id="debugOut">(open mic to populate)</pre>
+    </details>
+
+    <button class="sheet-close" id="sheetClose">Done</button>
+  </aside>
 
   <script>
     const $ = (id) => document.getElementById(id);
-    const enableBtn = $('enableBtn');
-    const enableWrap = $('enableWrap');
-    const pttBtn = $('pttBtn');
-    const statusDot = $('statusDot');
+    const body = document.body;
+    const enableBtn  = $('enableBtn');
+    const pttBtn     = $('pttBtn');
+    const statusDot  = $('statusDot');
     const statusText = $('statusText');
-    const meterFill = $('meterFill');
-    const errorLine = $('errorLine');
+    const meterFill  = $('meterFill');
+    const errorLine  = $('errorLine');
     const resumeBanner = $('resumeBanner');
-    const header = $('header');
+    const header     = $('header');
+    const settingsBtn = $('settingsBtn');
+    const profileChip = $('profileChip');
+    const sheet         = $('sheet');
+    const sheetBackdrop = $('sheetBackdrop');
+    const sheetClose    = $('sheetClose');
+    const sheetHandle   = $('sheetHandle');
+    const aecToggle     = $('aecToggle');
+    const testToneBtn   = $('testToneBtn');
+    const debugOut      = $('debugOut');
 
+    // ---- Audio profiles (tuned for HFP narrowband 300Hz–3.4kHz) ----
+    const PROFILES = {
+      crisp:   { hpf: 220, gate: -45, presence: { f: 2500, gain:  4 }, deess: { f: 5000, gain: -3 },
+                 comp: { thr: -18, ratio: 4, atk: 0.005, rel: 0.15, knee: 6 }, makeup: 1.5,  lpf: 3400, lim: -3 },
+      loud:    { hpf: 250, gate: -42, presence: { f: 2000, gain:  3 }, deess: { f: 5000, gain: -2 },
+                 comp: { thr: -22, ratio: 6, atk: 0.003, rel: 0.12, knee: 4 }, makeup: 1.8,  lpf: 3400, lim: -2 },
+      natural: { hpf: 180, gate: -50, presence: { f: 2500, gain:  2 }, deess: { f: 5500, gain: -2 },
+                 comp: { thr: -16, ratio: 3, atk: 0.010, rel: 0.20, knee: 6 }, makeup: 1.25, lpf: 3600, lim: -6 },
+    };
+    const PROFILE_LABELS = { crisp: 'Crisp', loud: 'Loud', natural: 'Natural' };
+
+    function loadSettings() {
+      try {
+        const raw = localStorage.getItem('megahorn:settings');
+        if (raw) {
+          const obj = JSON.parse(raw);
+          if (PROFILES[obj.profile] && typeof obj.aec === 'boolean') return obj;
+        }
+      } catch {}
+      return { profile: 'crisp', aec: false };
+    }
+    function saveSettings() {
+      try { localStorage.setItem('megahorn:settings', JSON.stringify(settings)); } catch {}
+    }
+    const settings = loadSettings();
+
+    // ---- Audio state ----
     let audioContext = null;
     let stream = null;
     let sourceNode = null;
     let pttGain = null;
     let analyser = null;
-    let wakeLock = null;
+    let gateRaf = null;
     let meterRaf = null;
+    let wakeLock = null;
     let talking = false;
     let enabled = false;
 
+    // ---- UI state machine ----
+    function setUIState(s) {
+      body.classList.remove('state-cold', 'state-ready', 'state-talking', 'state-paused');
+      body.classList.add('state-' + s);
+    }
     function setStatus(kind, text) {
       statusDot.className = 'dot' + (kind ? ' ' + kind : '');
       statusText.textContent = text;
     }
     function showError(msg) { errorLine.textContent = msg || ''; }
 
+    // ---- Audio graph ----
     async function acquireStream() {
       return navigator.mediaDevices.getUserMedia({
         audio: {
-          echoCancellation: true,
+          echoCancellation: settings.aec,
           autoGainControl: false,
           noiseSuppression: false,
           channelCount: 1
@@ -219,44 +576,106 @@
     }
 
     function buildGraph(ctx, mediaStream) {
+      const p = PROFILES[settings.profile];
       const src = ctx.createMediaStreamSource(mediaStream);
 
       const hpf = ctx.createBiquadFilter();
       hpf.type = 'highpass';
-      hpf.frequency.value = 120;
+      hpf.frequency.value = p.hpf;
+
+      const gate = ctx.createGain();
+      gate.gain.value = 0;
+
+      const presence = ctx.createBiquadFilter();
+      presence.type = 'peaking';
+      presence.frequency.value = p.presence.f;
+      presence.Q.value = 1.0;
+      presence.gain.value = p.presence.gain;
+
+      const deess = ctx.createBiquadFilter();
+      deess.type = 'peaking';
+      deess.frequency.value = p.deess.f;
+      deess.Q.value = 4.0;
+      deess.gain.value = p.deess.gain;
 
       const comp = ctx.createDynamicsCompressor();
-      comp.threshold.value = -24;
-      comp.ratio.value = 6;
-      comp.attack.value = 0.001;
-      comp.release.value = 0.08;
-      comp.knee.value = 6;
+      comp.threshold.value = p.comp.thr;
+      comp.ratio.value = p.comp.ratio;
+      comp.attack.value = p.comp.atk;
+      comp.release.value = p.comp.rel;
+      comp.knee.value = p.comp.knee;
 
       const makeup = ctx.createGain();
-      makeup.gain.value = 2;
+      makeup.gain.value = p.makeup;
+
+      const lpf = ctx.createBiquadFilter();
+      lpf.type = 'lowpass';
+      lpf.frequency.value = p.lpf;
 
       const ptt = ctx.createGain();
       ptt.gain.value = 0;
 
       const limiter = ctx.createDynamicsCompressor();
-      limiter.threshold.value = -1;
+      limiter.threshold.value = p.lim;
       limiter.ratio.value = 20;
       limiter.attack.value = 0.001;
       limiter.release.value = 0.05;
       limiter.knee.value = 0;
 
-      const an = ctx.createAnalyser();
-      an.fftSize = 512;
+      // Meter analyser (post-makeup, reflects voice level)
+      const meterAn = ctx.createAnalyser();
+      meterAn.fftSize = 1024;
 
+      // Gate analyser (pre-everything, reflects raw mic level for gate decision)
+      const gateAn = ctx.createAnalyser();
+      gateAn.fftSize = 1024;
+
+      // Wire: src → hpf → gate → presence → deess → comp → makeup → lpf → ptt → limiter → dest
+      // Gate analyser taps post-HPF so rumble doesn't trigger the gate.
       src.connect(hpf);
-      hpf.connect(comp);
+      hpf.connect(gateAn);
+      hpf.connect(gate);
+      gate.connect(presence);
+      presence.connect(deess);
+      deess.connect(comp);
       comp.connect(makeup);
-      makeup.connect(ptt);
+      makeup.connect(lpf);
+      makeup.connect(meterAn);
+      lpf.connect(ptt);
       ptt.connect(limiter);
       limiter.connect(ctx.destination);
-      makeup.connect(an);
 
-      return { src, ptt, analyser: an };
+      // RMS-driven gate: opens when raw mic exceeds gate threshold
+      const gateBuf = new Uint8Array(gateAn.fftSize);
+      const gateThresh = Math.pow(10, p.gate / 20);
+      let gateOpen = false;
+      const driveGate = () => {
+        gateAn.getByteTimeDomainData(gateBuf);
+        let sumSq = 0;
+        for (let i = 0; i < gateBuf.length; i++) {
+          const v = (gateBuf[i] - 128) / 128;
+          sumSq += v * v;
+        }
+        const rms = Math.sqrt(sumSq / gateBuf.length);
+        const want = rms > gateThresh ? 1 : 0;
+        if (want !== (gateOpen ? 1 : 0)) {
+          gateOpen = !!want;
+          const now = ctx.currentTime;
+          gate.gain.cancelScheduledValues(now);
+          gate.gain.setValueAtTime(gate.gain.value, now);
+          gate.gain.linearRampToValueAtTime(want, now + (want ? 0.03 : 0.2));
+        }
+        gateRaf = requestAnimationFrame(driveGate);
+      };
+      driveGate();
+
+      return { src, ptt, analyser: meterAn };
+    }
+
+    function teardownGraph() {
+      if (gateRaf) cancelAnimationFrame(gateRaf);
+      gateRaf = null;
+      try { sourceNode && sourceNode.disconnect(); } catch {}
     }
 
     function startMeter() {
@@ -302,9 +721,9 @@
       }
     }
 
-    function handleInterruption(reason) {
+    function handleInterruption() {
       if (talking) stopTalking();
-      resumeBanner.classList.add('show');
+      setUIState('paused');
       setStatus('error', 'paused');
     }
 
@@ -322,17 +741,16 @@
 
         stream = await acquireStream();
         const graph = buildGraph(audioContext, stream);
-        sourceNode = graph.src;
-        pttGain = graph.ptt;
-        analyser = graph.analyser;
+        sourceNode   = graph.src;
+        pttGain      = graph.ptt;
+        analyser     = graph.analyser;
 
         wireStreamListeners();
         await requestWakeLock();
         startMeter();
 
-        enableWrap.hidden = true;
-        pttBtn.hidden = false;
         enabled = true;
+        setUIState('ready');
         setStatus('ready', 'ready');
         showError('');
       } catch (err) {
@@ -340,16 +758,37 @@
         enableBtn.textContent = 'Enable microphone';
         setStatus('error', 'mic denied');
         if (err && err.name === 'NotAllowedError') {
-          showError('Microphone permission denied. Open Settings → Safari → Microphone to re-enable.');
+          showError('Mic permission denied. Settings → Safari → Microphone to re-enable.');
         } else {
           showError('Failed to start: ' + ((err && err.message) || err));
         }
       }
     }
 
+    async function rebuildGraphForSettingsChange() {
+      if (!enabled) return;
+      if (talking) stopTalking();
+      teardownGraph();
+      stopMeter();
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      try {
+        stream = await acquireStream();
+        const graph = buildGraph(audioContext, stream);
+        sourceNode   = graph.src;
+        pttGain      = graph.ptt;
+        analyser     = graph.analyser;
+        wireStreamListeners();
+        startMeter();
+        setStatus('ready', 'ready');
+        showError('');
+      } catch (err) {
+        setStatus('error', 'rebuild failed');
+        showError('Could not apply settings: ' + ((err && err.message) || err));
+      }
+    }
+
     async function resumeSession() {
       try {
-        resumeBanner.classList.remove('show');
         setStatus('', 'resuming');
         if (!audioContext || audioContext.state === 'closed') {
           const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -359,17 +798,19 @@
 
         const track = stream && stream.getAudioTracks()[0];
         if (!track || track.readyState === 'ended' || track.muted) {
+          teardownGraph();
           if (stream) stream.getTracks().forEach(t => t.stop());
           stopMeter();
           stream = await acquireStream();
           const graph = buildGraph(audioContext, stream);
-          sourceNode = graph.src;
-          pttGain = graph.ptt;
-          analyser = graph.analyser;
+          sourceNode   = graph.src;
+          pttGain      = graph.ptt;
+          analyser     = graph.analyser;
           wireStreamListeners();
           startMeter();
         }
         await requestWakeLock();
+        setUIState('ready');
         setStatus('ready', 'ready');
         showError('');
       } catch (err) {
@@ -380,7 +821,7 @@
 
     function startTalking(ev) {
       if (!enabled || !audioContext || !pttGain) return;
-      if (audioContext.state === 'suspended') { resumeSession(); return; }
+      if (audioContext.state === 'suspended' || body.classList.contains('state-paused')) { resumeSession(); return; }
       if (ev && ev.pointerId != null) {
         try { pttBtn.setPointerCapture(ev.pointerId); } catch {}
       }
@@ -391,6 +832,7 @@
       pttGain.gain.linearRampToValueAtTime(1, now + 0.01);
       pttBtn.classList.add('active');
       pttBtn.textContent = 'Broadcasting…';
+      setUIState('talking');
       setStatus('active', 'transmitting');
       if (navigator.vibrate) { try { navigator.vibrate(30); } catch {} }
     }
@@ -408,19 +850,122 @@
       pttGain.gain.linearRampToValueAtTime(0, now + 0.01);
       pttBtn.classList.remove('active');
       pttBtn.textContent = 'Hold to talk';
+      setUIState('ready');
       setStatus('ready', 'ready');
       if (ev && ev.pointerId != null) {
         try { pttBtn.releasePointerCapture(ev.pointerId); } catch {}
       }
     }
 
+    // ---- Settings UI ----
+    function syncSettingsUI() {
+      document.querySelectorAll('.seg').forEach(b => {
+        const on = b.dataset.profile === settings.profile;
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-checked', String(on));
+      });
+      aecToggle.checked = settings.aec;
+      profileChip.textContent = PROFILE_LABELS[settings.profile] + ' ▾';
+      testToneBtn.disabled = !audioContext;
+    }
+
+    function openSheet() {
+      body.classList.add('sheet-open');
+      syncSettingsUI();
+      refreshDebug();
+    }
+    function closeSheet() {
+      body.classList.remove('sheet-open');
+    }
+
+    async function refreshDebug() {
+      let txt = `audio context: ${audioContext ? audioContext.state : '(none)'}`;
+      if (audioContext) txt += `\nsample rate:   ${audioContext.sampleRate} Hz`;
+      txt += `\nprofile:       ${settings.profile}`;
+      txt += `\necho cancel:   ${settings.aec ? 'on' : 'off'}`;
+      if (stream) {
+        const t = stream.getAudioTracks()[0];
+        if (t) {
+          const s = t.getSettings ? t.getSettings() : {};
+          txt += `\ntrack label:   ${t.label || '(no label)'}`;
+          txt += `\ntrack ready:   ${t.readyState}`;
+          txt += `\ntrack settings:\n  ${JSON.stringify(s, null, 2).replace(/\n/g, '\n  ')}`;
+        }
+      }
+      try {
+        const devs = await navigator.mediaDevices.enumerateDevices();
+        txt += '\n\ndevices:\n' + devs.map(d => `  ${d.kind}: ${d.label || '(grant mic for labels)'}`).join('\n');
+      } catch {
+        txt += '\n\ndevices: (enumerate failed)';
+      }
+      debugOut.textContent = txt;
+    }
+
+    // ---- Test tone (sweep through speech band) ----
+    function playTestTone() {
+      if (!audioContext) return;
+      const ctx = audioContext;
+      const p = PROFILES[settings.profile];
+      testToneBtn.disabled = true;
+      testToneBtn.textContent = '… playing';
+      const dur = 1.8;
+      const now = ctx.currentTime;
+
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(600, now);
+      osc.frequency.exponentialRampToValueAtTime(2800, now + dur);
+
+      const env = ctx.createGain();
+      env.gain.setValueAtTime(0.0001, now);
+      env.gain.exponentialRampToValueAtTime(0.3, now + 0.05); // lower peak: it now hits makeup + limiter
+      env.gain.setValueAtTime(0.3, now + dur - 0.06);
+      env.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+
+      // Mirror the voice chain MINUS the noise gate and PTT (auditioning, not transmitting), so the
+      // sweep is shaped by the selected profile's EQ/compression/limiter and audibly differs per profile.
+      const hpf = ctx.createBiquadFilter();
+      hpf.type = 'highpass'; hpf.frequency.value = p.hpf;
+      const presence = ctx.createBiquadFilter();
+      presence.type = 'peaking'; presence.frequency.value = p.presence.f; presence.Q.value = 1.0; presence.gain.value = p.presence.gain;
+      const deess = ctx.createBiquadFilter();
+      deess.type = 'peaking'; deess.frequency.value = p.deess.f; deess.Q.value = 4.0; deess.gain.value = p.deess.gain;
+      const comp = ctx.createDynamicsCompressor();
+      comp.threshold.value = p.comp.thr; comp.ratio.value = p.comp.ratio; comp.attack.value = p.comp.atk; comp.release.value = p.comp.rel; comp.knee.value = p.comp.knee;
+      const makeup = ctx.createGain();
+      makeup.gain.value = p.makeup;
+      const lpf = ctx.createBiquadFilter();
+      lpf.type = 'lowpass'; lpf.frequency.value = p.lpf;
+      const limiter = ctx.createDynamicsCompressor();
+      limiter.threshold.value = p.lim; limiter.ratio.value = 20; limiter.attack.value = 0.001; limiter.release.value = 0.05; limiter.knee.value = 0;
+
+      osc.connect(env);
+      env.connect(hpf);
+      hpf.connect(presence);
+      presence.connect(deess);
+      deess.connect(comp);
+      comp.connect(makeup);
+      makeup.connect(lpf);
+      lpf.connect(limiter);
+      limiter.connect(ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + dur);
+      osc.onended = () => {
+        testToneBtn.disabled = false;
+        testToneBtn.textContent = '▶ Play test tone';
+        [osc, env, hpf, presence, deess, comp, makeup, lpf, limiter].forEach(n => { try { n.disconnect(); } catch {} });
+      };
+    }
+
+    // ---- Event wiring ----
     enableBtn.addEventListener('click', enable, { passive: true });
 
-    pttBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); startTalking(e); });
-    pttBtn.addEventListener('pointerup',   (e) => { e.preventDefault(); stopTalking(e); });
-    pttBtn.addEventListener('pointercancel', (e) => { stopTalking(e); });
-    pttBtn.addEventListener('lostpointercapture', (e) => { stopTalking(e); });
-    pttBtn.addEventListener('contextmenu', (e) => e.preventDefault());
+    pttBtn.addEventListener('pointerdown',        e => { e.preventDefault(); startTalking(e); });
+    pttBtn.addEventListener('pointerup',          e => { e.preventDefault(); stopTalking(e); });
+    pttBtn.addEventListener('pointercancel',      e => stopTalking(e));
+    pttBtn.addEventListener('lostpointercapture', e => stopTalking(e));
+    pttBtn.addEventListener('contextmenu',        e => e.preventDefault());
 
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Space' && !e.repeat) {
@@ -438,30 +983,77 @@
       if (document.hidden) {
         if (talking) stopTalking();
       } else {
-        if (enabled && audioContext && audioContext.state === 'suspended') {
-          resumeBanner.classList.add('show');
-        }
+        if (enabled && audioContext && audioContext.state === 'suspended') setUIState('paused');
         requestWakeLock();
       }
     });
 
     resumeBanner.addEventListener('click', resumeSession);
 
-    // Long-press header → device debug info
+    settingsBtn.addEventListener('click', openSheet);
+    profileChip.addEventListener('click', openSheet);
+    sheetBackdrop.addEventListener('click', closeSheet);
+    sheetClose.addEventListener('click', closeSheet);
+
+    // Drag the handle down to dismiss (bound to the handle only, so it never fights sheet scroll)
+    let sheetDragStartY = 0, sheetDragging = false, sheetDragDy = 0;
+    sheetHandle.addEventListener('pointerdown', (e) => {
+      sheetDragging = true;
+      sheetDragDy = 0;
+      sheetDragStartY = e.clientY;
+      sheet.style.transition = 'none';
+      try { sheetHandle.setPointerCapture(e.pointerId); } catch {}
+    });
+    sheetHandle.addEventListener('pointermove', (e) => {
+      if (!sheetDragging) return;
+      sheetDragDy = Math.max(0, e.clientY - sheetDragStartY);
+      sheet.style.transform = `translateY(${sheetDragDy}px)`;
+      sheetBackdrop.style.opacity = String(Math.max(0, 1 - sheetDragDy / 400));
+    });
+    const endSheetDrag = (e) => {
+      if (!sheetDragging) return;
+      sheetDragging = false;
+      sheet.style.transition = '';           // re-enable the spring
+      sheetBackdrop.style.opacity = '';      // hand opacity back to the .sheet-open rule
+      sheet.style.transform = '';            // clear inline so the class controls the resting position
+      if (sheetDragDy > 120) closeSheet();   // past threshold → dismiss; otherwise snaps back to open
+      if (e && e.pointerId != null) { try { sheetHandle.releasePointerCapture(e.pointerId); } catch {} }
+    };
+    sheetHandle.addEventListener('pointerup', endSheetDrag);
+    sheetHandle.addEventListener('pointercancel', endSheetDrag);
+
+    document.querySelectorAll('.seg').forEach(b => {
+      b.addEventListener('click', async () => {
+        const next = b.dataset.profile;
+        if (!PROFILES[next] || next === settings.profile) return;
+        settings.profile = next;
+        saveSettings();
+        syncSettingsUI();
+        if (navigator.vibrate) { try { navigator.vibrate(15); } catch {} }
+        await rebuildGraphForSettingsChange();
+      });
+    });
+    aecToggle.addEventListener('change', async () => {
+      settings.aec = aecToggle.checked;
+      saveSettings();
+      await rebuildGraphForSettingsChange();
+    });
+    testToneBtn.addEventListener('click', playTestTone);
+
+    // Long-press header still opens settings (power-user shortcut)
     let pressTimer;
     header.addEventListener('pointerdown', () => {
       clearTimeout(pressTimer);
-      pressTimer = setTimeout(async () => {
-        try {
-          const devs = await navigator.mediaDevices.enumerateDevices();
-          const out = devs.map(d => `${d.kind}: ${d.label || '(no label — grant mic first)'}`).join('\n');
-          alert('Devices:\n\n' + out + '\n\nAudioContext: ' + (audioContext ? audioContext.state : 'not created'));
-        } catch (e) { alert('enumerate failed: ' + e); }
-      }, 1500);
+      pressTimer = setTimeout(() => openSheet(), 1500);
     });
     header.addEventListener('pointerup',     () => clearTimeout(pressTimer));
     header.addEventListener('pointerleave',  () => clearTimeout(pressTimer));
     header.addEventListener('pointercancel', () => clearTimeout(pressTimer));
+
+    // ---- Init ----
+    syncSettingsUI();
+    setUIState('cold');
+    setStatus('', 'waiting');
   </script>
 </body>
 </html>
