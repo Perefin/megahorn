@@ -74,7 +74,7 @@ mic
 - PWA manifest — add to home screen for fullscreen
 - iOS-native bottom-sheet settings (drag to dismiss, system blue accents, blur surfaces)
 - Body-class state machine — no more stuck enable button when permission is granted
-- Test tone (sine sweep through the speech band) so you can hear the profile without two hands
+- Test tone — a sine sweep routed through the **selected profile's** EQ, compression, and limiter, so you can hear what each profile does without holding PTT
 - Long-press the title to open settings as a power-user shortcut
 
 ## Tech

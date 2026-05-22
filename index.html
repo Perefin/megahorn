@@ -72,6 +72,7 @@
   body.state-talking    .top-bar    { opacity: 0.35; transition: opacity 0.3s ease; }
   body:not(.state-paused) .resume-banner { display: none; }
   body.state-paused     .resume-banner   { display: block; }
+  body.state-paused     #pttWrap         { display: none; } /* resume banner is the only action while paused */
 
   /* ---- header ---- */
   header {
@@ -457,7 +458,7 @@
 
   <div class="sheet-backdrop" id="sheetBackdrop"></div>
   <aside class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Settings">
-    <div class="sheet-handle" aria-hidden="true"></div>
+    <div class="sheet-handle" id="sheetHandle" aria-hidden="true"></div>
     <h2>Settings</h2>
 
     <section>
@@ -508,6 +509,7 @@
     const sheet         = $('sheet');
     const sheetBackdrop = $('sheetBackdrop');
     const sheetClose    = $('sheetClose');
+    const sheetHandle   = $('sheetHandle');
     const aecToggle     = $('aecToggle');
     const testToneBtn   = $('testToneBtn');
     const debugOut      = $('debugOut');
@@ -544,8 +546,6 @@
     let sourceNode = null;
     let pttGain = null;
     let analyser = null;
-    let gateAnalyser = null;
-    let gateGain = null;
     let gateRaf = null;
     let meterRaf = null;
     let wakeLock = null;
@@ -669,7 +669,7 @@
       };
       driveGate();
 
-      return { src, ptt, analyser: meterAn, gate, gateAn };
+      return { src, ptt, analyser: meterAn };
     }
 
     function teardownGraph() {
@@ -744,8 +744,6 @@
         sourceNode   = graph.src;
         pttGain      = graph.ptt;
         analyser     = graph.analyser;
-        gateAnalyser = graph.gateAn;
-        gateGain     = graph.gate;
 
         wireStreamListeners();
         await requestWakeLock();
@@ -779,8 +777,6 @@
         sourceNode   = graph.src;
         pttGain      = graph.ptt;
         analyser     = graph.analyser;
-        gateAnalyser = graph.gateAn;
-        gateGain     = graph.gate;
         wireStreamListeners();
         startMeter();
         setStatus('ready', 'ready');
@@ -810,8 +806,6 @@
           sourceNode   = graph.src;
           pttGain      = graph.ptt;
           analyser     = graph.analyser;
-          gateAnalyser = graph.gateAn;
-          gateGain     = graph.gate;
           wireStreamListeners();
           startMeter();
         }
@@ -827,7 +821,7 @@
 
     function startTalking(ev) {
       if (!enabled || !audioContext || !pttGain) return;
-      if (audioContext.state === 'suspended') { resumeSession(); return; }
+      if (audioContext.state === 'suspended' || body.classList.contains('state-paused')) { resumeSession(); return; }
       if (ev && ev.pointerId != null) {
         try { pttBtn.setPointerCapture(ev.pointerId); } catch {}
       }
@@ -910,26 +904,57 @@
     // ---- Test tone (sweep through speech band) ----
     function playTestTone() {
       if (!audioContext) return;
+      const ctx = audioContext;
+      const p = PROFILES[settings.profile];
       testToneBtn.disabled = true;
       testToneBtn.textContent = '… playing';
-      const ctx = audioContext;
-      const dur = 1.6;
+      const dur = 1.8;
       const now = ctx.currentTime;
+
       const osc = ctx.createOscillator();
       osc.type = 'sine';
       osc.frequency.setValueAtTime(600, now);
       osc.frequency.exponentialRampToValueAtTime(2800, now + dur);
+
       const env = ctx.createGain();
       env.gain.setValueAtTime(0.0001, now);
-      env.gain.exponentialRampToValueAtTime(0.4, now + 0.05);
-      env.gain.setValueAtTime(0.4, now + dur - 0.05);
+      env.gain.exponentialRampToValueAtTime(0.3, now + 0.05); // lower peak: it now hits makeup + limiter
+      env.gain.setValueAtTime(0.3, now + dur - 0.06);
       env.gain.exponentialRampToValueAtTime(0.0001, now + dur);
-      osc.connect(env).connect(ctx.destination);
+
+      // Mirror the voice chain MINUS the noise gate and PTT (auditioning, not transmitting), so the
+      // sweep is shaped by the selected profile's EQ/compression/limiter and audibly differs per profile.
+      const hpf = ctx.createBiquadFilter();
+      hpf.type = 'highpass'; hpf.frequency.value = p.hpf;
+      const presence = ctx.createBiquadFilter();
+      presence.type = 'peaking'; presence.frequency.value = p.presence.f; presence.Q.value = 1.0; presence.gain.value = p.presence.gain;
+      const deess = ctx.createBiquadFilter();
+      deess.type = 'peaking'; deess.frequency.value = p.deess.f; deess.Q.value = 4.0; deess.gain.value = p.deess.gain;
+      const comp = ctx.createDynamicsCompressor();
+      comp.threshold.value = p.comp.thr; comp.ratio.value = p.comp.ratio; comp.attack.value = p.comp.atk; comp.release.value = p.comp.rel; comp.knee.value = p.comp.knee;
+      const makeup = ctx.createGain();
+      makeup.gain.value = p.makeup;
+      const lpf = ctx.createBiquadFilter();
+      lpf.type = 'lowpass'; lpf.frequency.value = p.lpf;
+      const limiter = ctx.createDynamicsCompressor();
+      limiter.threshold.value = p.lim; limiter.ratio.value = 20; limiter.attack.value = 0.001; limiter.release.value = 0.05; limiter.knee.value = 0;
+
+      osc.connect(env);
+      env.connect(hpf);
+      hpf.connect(presence);
+      presence.connect(deess);
+      deess.connect(comp);
+      comp.connect(makeup);
+      makeup.connect(lpf);
+      lpf.connect(limiter);
+      limiter.connect(ctx.destination);
+
       osc.start(now);
       osc.stop(now + dur);
       osc.onended = () => {
         testToneBtn.disabled = false;
         testToneBtn.textContent = '▶ Play test tone';
+        [osc, env, hpf, presence, deess, comp, makeup, lpf, limiter].forEach(n => { try { n.disconnect(); } catch {} });
       };
     }
 
@@ -969,6 +994,33 @@
     profileChip.addEventListener('click', openSheet);
     sheetBackdrop.addEventListener('click', closeSheet);
     sheetClose.addEventListener('click', closeSheet);
+
+    // Drag the handle down to dismiss (bound to the handle only, so it never fights sheet scroll)
+    let sheetDragStartY = 0, sheetDragging = false, sheetDragDy = 0;
+    sheetHandle.addEventListener('pointerdown', (e) => {
+      sheetDragging = true;
+      sheetDragDy = 0;
+      sheetDragStartY = e.clientY;
+      sheet.style.transition = 'none';
+      try { sheetHandle.setPointerCapture(e.pointerId); } catch {}
+    });
+    sheetHandle.addEventListener('pointermove', (e) => {
+      if (!sheetDragging) return;
+      sheetDragDy = Math.max(0, e.clientY - sheetDragStartY);
+      sheet.style.transform = `translateY(${sheetDragDy}px)`;
+      sheetBackdrop.style.opacity = String(Math.max(0, 1 - sheetDragDy / 400));
+    });
+    const endSheetDrag = (e) => {
+      if (!sheetDragging) return;
+      sheetDragging = false;
+      sheet.style.transition = '';           // re-enable the spring
+      sheetBackdrop.style.opacity = '';      // hand opacity back to the .sheet-open rule
+      sheet.style.transform = '';            // clear inline so the class controls the resting position
+      if (sheetDragDy > 120) closeSheet();   // past threshold → dismiss; otherwise snaps back to open
+      if (e && e.pointerId != null) { try { sheetHandle.releasePointerCapture(e.pointerId); } catch {} }
+    };
+    sheetHandle.addEventListener('pointerup', endSheetDrag);
+    sheetHandle.addEventListener('pointercancel', endSheetDrag);
 
     document.querySelectorAll('.seg').forEach(b => {
       b.addEventListener('click', async () => {
